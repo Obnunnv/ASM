@@ -1,2 +1,2 @@
 # ASM
-ASM x86-64
+ASM x86
